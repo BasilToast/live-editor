@@ -3,7 +3,7 @@ import { ControlledEditor } from '@monaco-editor/react';
 import io from 'socket.io-client';
 import { Operation, merge } from './ot';
 
-const target = `http://localhost:3030`;
+const target = `http://127.0.0.1:3030`;
 const live = {};
 const url = 'basiltoast';
 
@@ -42,6 +42,8 @@ function App() {
     const handleDidMount = (_, editor) => {
         monaco.current = editor;
     };
+
+    const handle
 
     useEffect(() => {
         if (code === value) return;

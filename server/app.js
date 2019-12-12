@@ -23,11 +23,9 @@ io.on('connection', socket => {
     // change event calculate operation
     socket.on('change', op => {
         const { history, content } = data['basiltoast'];
-        // history.forEach(oldOp => {
-        // op = transform(op, oldOp);
-        op = transform(op, history[history.length - 1]);
-        // });
-        console.log(op);
+        history.forEach(oldOp => {
+            op = transform(op, oldOp);
+        });
         history.push(op);
         data['basiltoast']['content'] = merge(op, content);
         io.in('basiltoast').emit('change', socket.id, op);
