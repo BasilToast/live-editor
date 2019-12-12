@@ -1,0 +1,10 @@
+{
+    "name": "live-editor-server",
+    "version": "1.0.0",
+    "main": "server.js",
+    "license": "MIT",
+    "dependencies": {
+        "fast-diff": "^1.2.0",
+        "socket-io": "^1.0.0"
+    }
+}
