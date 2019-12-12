@@ -12,7 +12,7 @@ function App() {
     const [value, setValue] = useState('');
     const [isPending, setIsPending] = useState(false);
     const [isBusy, setIsBusy] = useState(false);
-    const monaco = useRef();
+    const monacoRef = useRef();
     const codeRef = useRef('');
 
     const handleInit = () => {
@@ -31,7 +31,18 @@ function App() {
                 return setTimeout(setIsPending(false), 0);
             }
             setIsBusy(true);
+
+            const selection = monacoRef.current.getSelection();
+            // console.log(selection);
+            // const model = monacoRef.current.getModel();
+            // console.log(model.getValueInRange(
+            //     {
+            //         ...position,
+            //         selectionStartColumn: 1,
+            //         selectionStartLineNumber: 1
+            // }));
             setCode(merge(op, codeRef.current));
+            monacoRef.current.setSelection(selection);
         });
     };
 
@@ -40,10 +51,8 @@ function App() {
     };
 
     const handleDidMount = (_, editor) => {
-        monaco.current = editor;
+        monacoRef.current = editor;
     };
-
-    const handle
 
     useEffect(() => {
         if (code === value) return;
