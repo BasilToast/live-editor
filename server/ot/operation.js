@@ -11,19 +11,8 @@ class Operation {
         const diffResult = diff.diffChars(oldStr, newStr);
         diffResult.forEach(({ count, added, removed, value }) => {
             if (!added && !removed) this.retain(count);
-        else if (added) this.insert(value);
-        else if (removed) this.delete(count);
-            // switch (d[0]) {
-            //     case diff.EQUAL:
-            //         this.retain(d[1].length);
-            //         break;
-            //     case diff.INSERT:
-            //         this.insert(d[1]);
-            //         break;
-            //     case diff.DELETE:
-            //         this.delete(d[1].length);
-            //         break;
-            // }
+            else if (added) this.insert(value);
+            else if (removed) this.delete(count);
         });
     }
 

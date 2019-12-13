@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ControlledEditor } from '@monaco-editor/react';
 import io from 'socket.io-client';
 import { Operation, merge } from './ot';
@@ -14,8 +14,9 @@ function App() {
     const [isBusy, setIsBusy] = useState(false);
     const monacoRef = useRef();
     const codeRef = useRef('');
+    const cursorRef = useRef();
 
-    const handleInit = () => {
+    const handleInit = useCallback(() => {
         live.socket = io(target);
         const { socket } = live;
         socket.on('connection', id => {
@@ -31,28 +32,19 @@ function App() {
                 return setTimeout(setIsPending(false), 0);
             }
             setIsBusy(true);
-
-            const selection = monacoRef.current.getSelection();
-            // console.log(selection);
-            // const model = monacoRef.current.getModel();
-            // console.log(model.getValueInRange(
-            //     {
-            //         ...position,
-            //         selectionStartColumn: 1,
-            //         selectionStartLineNumber: 1
-            // }));
+            if (!monacoRef.current) return;
+            cursorRef.current = monacoRef.current.getSelection();
             setCode(merge(op, codeRef.current));
-            monacoRef.current.setSelection(selection);
         });
-    };
+    }, []);
 
-    const handleOnChage = (_, value) => {
-        setValue(value);
-    };
-
-    const handleDidMount = (_, editor) => {
+    const handleDidMount = useCallback((_, editor) => {
         monacoRef.current = editor;
-    };
+    }, []);
+
+    const handleOnChange = useCallback((_, value) => {
+        setValue(value);
+    });
 
     useEffect(() => {
         if (code === value) return;
@@ -60,6 +52,8 @@ function App() {
         if (!live.socket) return;
         live.socket.emit('change', new Operation(code, value));
         setIsBusy(true);
+        if (!monacoRef.current) return;
+        cursorRef.current = monacoRef.current.getSelection();
         setCode(value);
         setIsPending(true);
     }, [code, value, isPending, isBusy]);
@@ -69,6 +63,24 @@ function App() {
     }, [code, value]);
 
     useEffect(() => {
+        if (!monacoRef.current) return;
+        const selection = monacoRef.current.getSelection();
+        console.log('before : ', cursorRef.current);
+        console.log('after  : ', selection);
+
+        // Object.keys(monaco)
+
+        // const newCursor = {
+        //     endColumn: 4,
+        //     endLineNumber: 1,
+        //     positionColumn: 4,
+        //     positionLineNumber: 1,
+        //     selectionStartColumn: 1,
+        //     selectionStartLineNumber: 1,
+        //     startColumn: 1,
+        //     startLineNumber: 1
+        // };
+
         codeRef.current = code;
     }, [code]);
 
@@ -83,7 +95,7 @@ function App() {
                 language="javascript"
                 value={code}
                 editorDidMount={handleDidMount}
-                onChange={handleOnChage}
+                onChange={handleOnChange}
             />
         </>
     );
