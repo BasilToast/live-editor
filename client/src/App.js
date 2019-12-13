@@ -46,7 +46,7 @@ function App() {
         });
     };
 
-    const handleOnChage = (_, value) => {
+    const handleOnChange = (_, value) => {
         setValue(value);
     };
 
@@ -83,7 +83,7 @@ function App() {
                 language="javascript"
                 value={code}
                 editorDidMount={handleDidMount}
-                onChange={handleOnChage}
+                onChange={handleOnChange}
             />
         </>
     );
