@@ -35,7 +35,9 @@ function transform(o1, o2) {
                 throw new Error('opertaion error');
         }
     }
+
     o1[0].value += offset;
+
     o1.push(t1);
     o2.push(t2);
     return o1;

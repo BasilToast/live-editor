@@ -1,90 +1,89 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { ControlledEditor } from '@monaco-editor/react';
 import io from 'socket.io-client';
 import { Operation, merge } from './ot';
 
-const target = `http://127.0.0.1:3030`;
+const target = `http://172.16.180.126:3030`;
 const live = {};
 const url = 'basiltoast';
 
 function App() {
-    const [code, setCode] = useState('');
-    const [value, setValue] = useState('');
-    const [isPending, setIsPending] = useState(false);
-    const [isBusy, setIsBusy] = useState(false);
-    const monacoRef = useRef();
-    const codeRef = useRef('');
-    const cursorRef = useRef();
+    const editorRef = useRef();
+    const originCodeRef = useRef('');
+    const modifyCodeRef = useRef('');
+    const pendingEvent = useRef(false);
 
-    const handleInit = useCallback(() => {
-        live.socket = io(target);
+    const handleDidMount = (_, editor) => {
+        editorRef.current = editor;
+
+        editor.onDidChangeModelContent(handleEmit);
+    };
+
+    const handleEmit = () => {
+        modifyCodeRef.current = editorRef.current.getValue();
+        if (originCodeRef.current === modifyCodeRef.current) return;
+        setTimeout(handleEmit);
+        if (pendingEvent.current) return;
+
+        pendingEvent.current = true;
         const { socket } = live;
-        socket.on('connection', id => {
-            live.id = id;
-            socket.emit('join', url, code);
+        socket.emit(
+            'change',
+            new Operation(originCodeRef.current, modifyCodeRef.current)
+        );
+    };
+
+    useEffect(() => {
+        live['socket'] = io(target);
+        const { socket } = live;
+
+        socket.on('connection', () => {
+            socket.emit('join', url, '');
         });
-        socket.on('initailize', initailData => {
-            setIsBusy(true);
-            setCode(initailData);
+
+        socket.on('initailize', data => {
+            originCodeRef.current = data;
+            modifyCodeRef.current = data;
         });
-        socket.on('change', (id, op) => {
-            if (id === socket.id) {
-                return setTimeout(setIsPending(false), 0);
+
+        socket.on('change', (socketId, op) => {
+            if (socket.id === socketId) {
+                pendingEvent.current = false;
+                originCodeRef.current = merge(op, originCodeRef.current);
+            } else {
+                originCodeRef.current = merge(op, originCodeRef.current);
+                modifyCodeRef.current = merge(op, modifyCodeRef.current);
+                const position = editorRef.current.getPosition();
+                const opBase = op[0].value;
+
+                let positionOffset = editorRef.current
+                    .getModel()
+                    .getOffsetAt(position);
+
+                let opOffset = 0;
+                op.forEach(o => {
+                    switch (o.state) {
+                        case 'insert':
+                            opOffset += o.value.length;
+                            break;
+                        case 'delete':
+                            opOffset -= o.value;
+                            break;
+                        default:
+                            break;
+                    }
+                });
+                if (opBase < positionOffset) positionOffset += opOffset;
+
+                editorRef.current.setValue(modifyCodeRef.current);
+                const newPosition = editorRef.current
+                    .getModel()
+                    .getPositionAt(positionOffset);
+
+                editorRef.current.setPosition(newPosition);
             }
-            setIsBusy(true);
-            if (!monacoRef.current) return;
-            cursorRef.current = monacoRef.current.getSelection();
-            setCode(merge(op, codeRef.current));
         });
-    });
-
-    const handleDidMount = useCallback((_, editor) => {
-        monacoRef.current = editor;
     }, []);
-
-    const handleOnChange = useCallback((_, value) => {
-        setValue(value);
-    });
-
-    useEffect(() => {
-        if (code === value) return;
-        if (isPending || isBusy) return;
-        if (!live.socket) return;
-        live.socket.emit('change', new Operation(code, value));
-        setIsBusy(true);
-        if (!monacoRef.current) return;
-        cursorRef.current = monacoRef.current.getSelection();
-        setCode(value);
-        setIsPending(true);
-    }, [code, value, isPending, isBusy]);
-
-    useEffect(() => {
-        if (code !== value) setIsBusy(false);
-    }, [code, value]);
-
-    useEffect(() => {
-        if (!monacoRef.current) return;
-        const selection = monacoRef.current.getSelection();
-        console.log('before : ', cursorRef.current);
-        console.log('after  : ', selection);
-
-        // Object.keys(monaco)
-
-        // const newCursor = {
-        //     endColumn: 4,
-        //     endLineNumber: 1,
-        //     positionColumn: 4,
-        //     positionLineNumber: 1,
-        //     selectionStartColumn: 1,
-        //     selectionStartLineNumber: 1,
-        //     startColumn: 1,
-        //     startLineNumber: 1
-        // };
-
-        codeRef.current = code;
-    }, [code]);
-
-    useEffect(handleInit, []);
 
     return (
         <>
@@ -93,9 +92,7 @@ function App() {
                 width="100vw"
                 theme="vs-dark"
                 language="javascript"
-                value={code}
                 editorDidMount={handleDidMount}
-                onChange={handleOnChange}
             />
         </>
     );
