@@ -13,7 +13,12 @@ io.on('connection', socket => {
             data[url] = {};
             data[url]['content'] = initailData;
             data[url]['history'] = [];
-            data[url]['history'].push(new Operation('', initailData));
+            data[url]['history'].push({
+                rangeLength: 0,
+                rangeOffset: 0,
+                text: '',
+                timeStamp: Date()
+            });
         }
         socket.join(url);
         console.log(`${socket.id} is joined ${url}`);
@@ -26,7 +31,7 @@ io.on('connection', socket => {
         history.forEach(oldOp => {
             op = transform(op, oldOp);
         });
-        // const newOp = transform(op, history.pop());
+
         history.push(op);
         data['basiltoast']['content'] = merge(op, content);
         io.in('basiltoast').emit('change', socket.id, op);

@@ -2,8 +2,9 @@ import React, { useRef, useEffect } from 'react';
 import { ControlledEditor } from '@monaco-editor/react';
 import io from 'socket.io-client';
 import { Operation, merge } from './ot';
+import _ from 'lodash';
 
-const target = `http://172.16.180.126:3030`;
+const target = `http://125.142.133.130:3030`;
 const live = {};
 const url = 'basiltoast';
 
@@ -15,22 +16,22 @@ function App() {
 
     const handleDidMount = (_, editor) => {
         editorRef.current = editor;
-
         editor.onDidChangeModelContent(handleEmit);
     };
 
-    const handleEmit = () => {
-        modifyCodeRef.current = editorRef.current.getValue();
-        if (originCodeRef.current === modifyCodeRef.current) return;
-        setTimeout(handleEmit);
-        if (pendingEvent.current) return;
-
-        pendingEvent.current = true;
-        const { socket } = live;
-        socket.emit(
-            'change',
-            new Operation(originCodeRef.current, modifyCodeRef.current)
-        );
+    const handleEmit = (e, timeStamp) => {
+        if(e.changes[0].forceMoveMarkers) return;
+        if(!timeStamp) timeStamp = Date();
+        if(pendingEvent.current) handleEmit(e, timeStamp);
+        const {socket} = live;
+        const change = e.changes[0];
+        const operation = {
+            rangeLength: change.rangeLength,
+            rangeOffset: change.rangeOffset,
+            text: change.text.replace(/\r\n/g, '\n'),
+            timeStamp: timeStamp
+        }
+        socket.emit('change', operation);
     };
 
     useEffect(() => {
@@ -47,40 +48,29 @@ function App() {
         });
 
         socket.on('change', (socketId, op) => {
+            
             if (socket.id === socketId) {
-                pendingEvent.current = false;
-                originCodeRef.current = merge(op, originCodeRef.current);
+                setTimeout(() => {
+                    pendingEvent.current = false;
+                }, 10);
             } else {
-                originCodeRef.current = merge(op, originCodeRef.current);
-                modifyCodeRef.current = merge(op, modifyCodeRef.current);
-                const position = editorRef.current.getPosition();
-                const opBase = op[0].value;
+                console.log(op);
+                const rangeOffset = op.rangeOffset;
+                const rangeLength = op.rangeLength;
+                const text = op.text;
 
-                let positionOffset = editorRef.current
-                    .getModel()
-                    .getOffsetAt(position);
-
-                let opOffset = 0;
-                op.forEach(o => {
-                    switch (o.state) {
-                        case 'insert':
-                            opOffset += o.value.length;
-                            break;
-                        case 'delete':
-                            opOffset -= o.value;
-                            break;
-                        default:
-                            break;
-                    }
-                });
-                if (opBase < positionOffset) positionOffset += opOffset;
-
-                editorRef.current.setValue(modifyCodeRef.current);
-                const newPosition = editorRef.current
-                    .getModel()
-                    .getPositionAt(positionOffset);
-
-                editorRef.current.setPosition(newPosition);
+                const startPosition = editorRef.current.getModel().getPositionAt(rangeOffset);
+                const endPosition = editorRef.current.getModel().getPositionAt(rangeOffset + rangeLength);
+                editorRef.current.executeEdits(socketId, [{
+                    range: {
+                        startLineNumber: startPosition.lineNumber,
+                        startColumn: startPosition.column,
+                        endLineNumber: endPosition.lineNumber,
+                        endColumn: endPosition.column
+                    },
+                    text,
+                    forceMoveMarkers: true
+                }]);
             }
         });
     }, []);
