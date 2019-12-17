@@ -1,18 +1,15 @@
 import React, { useRef, useEffect } from 'react';
 import { ControlledEditor } from '@monaco-editor/react';
 import io from 'socket.io-client';
-import { Operation, merge } from './ot';
-import _ from 'lodash';
 
-const target = `http://125.142.133.130:3030`;
+const target = `http://172.16.180.126:3030`;
 const live = {};
 const url = 'basiltoast';
 
 function App() {
     const editorRef = useRef();
-    const originCodeRef = useRef('');
-    const modifyCodeRef = useRef('');
     const pendingEvent = useRef(false);
+    const isBusy = useRef(false);
 
     const handleDidMount = (_, editor) => {
         editorRef.current = editor;
@@ -20,17 +17,17 @@ function App() {
     };
 
     const handleEmit = (e, timeStamp) => {
-        if(e.changes[0].forceMoveMarkers) return;
-        if(!timeStamp) timeStamp = Date();
-        if(pendingEvent.current) handleEmit(e, timeStamp);
-        const {socket} = live;
+        if (isBusy.current) return;
+        if (!timeStamp) timeStamp = Date();
+        if (pendingEvent.current) handleEmit(e, timeStamp);
+        const { socket } = live;
         const change = e.changes[0];
         const operation = {
             rangeLength: change.rangeLength,
             rangeOffset: change.rangeOffset,
             text: change.text.replace(/\r\n/g, '\n'),
             timeStamp: timeStamp
-        }
+        };
         socket.emit('change', operation);
     };
 
@@ -43,34 +40,39 @@ function App() {
         });
 
         socket.on('initailize', data => {
-            originCodeRef.current = data;
-            modifyCodeRef.current = data;
+            // initailize
         });
 
         socket.on('change', (socketId, op) => {
-            
             if (socket.id === socketId) {
                 setTimeout(() => {
                     pendingEvent.current = false;
                 }, 10);
             } else {
-                console.log(op);
                 const rangeOffset = op.rangeOffset;
                 const rangeLength = op.rangeLength;
                 const text = op.text;
 
-                const startPosition = editorRef.current.getModel().getPositionAt(rangeOffset);
-                const endPosition = editorRef.current.getModel().getPositionAt(rangeOffset + rangeLength);
-                editorRef.current.executeEdits(socketId, [{
-                    range: {
-                        startLineNumber: startPosition.lineNumber,
-                        startColumn: startPosition.column,
-                        endLineNumber: endPosition.lineNumber,
-                        endColumn: endPosition.column
-                    },
-                    text,
-                    forceMoveMarkers: true
-                }]);
+                const startPosition = editorRef.current
+                    .getModel()
+                    .getPositionAt(rangeOffset);
+                const endPosition = editorRef.current
+                    .getModel()
+                    .getPositionAt(rangeOffset + rangeLength);
+                isBusy.current = true;
+                editorRef.current.executeEdits(socketId, [
+                    {
+                        range: {
+                            startLineNumber: startPosition.lineNumber,
+                            startColumn: startPosition.column,
+                            endLineNumber: endPosition.lineNumber,
+                            endColumn: endPosition.column
+                        },
+                        text,
+                        forceMoveMarkers: true
+                    }
+                ]);
+                isBusy.current = false;
             }
         });
     }, []);
