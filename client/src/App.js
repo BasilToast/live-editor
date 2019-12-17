@@ -1,10 +1,47 @@
 import React, { useRef, useEffect } from 'react';
 import { ControlledEditor } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import io from 'socket.io-client';
+import _ from 'lodash';
 
-const target = `http://172.16.180.126:3030`;
+const target = `http://localhost:3030`;
 const live = {};
+const user = {};
 const url = 'basiltoast';
+
+class createCursorWidget {
+    constructor(editor, id, position) {
+        this.editor = editor;
+        this.id = id;
+        this.domNode = null;
+        this.position = position;
+    }
+
+    getId() {
+        return this.id;
+    }
+
+    getDomNode() {
+        if (!this.domNode) {
+            this.domNode = document.createElement('div');
+            this.domNode.innerHTML = 'user';
+            this.domNode.style.background = 'grey';
+            this.domNode.id = this.id;
+        }
+        return this.domNode;
+    }
+
+    getPosition() {
+        return {
+            position: this.position,
+            preference: [monaco.editor.ContentWidgetPositionPreference.EXACT]
+        };
+    }
+    updatePosition(position) {
+        this.position = position;
+        this.editor.layoutContentWidget(this);
+    }
+}
 
 function App() {
     const editorRef = useRef();
@@ -14,6 +51,7 @@ function App() {
     const handleDidMount = (_, editor) => {
         editorRef.current = editor;
         editor.onDidChangeModelContent(handleEmit);
+        editor.onDidChangeCursorPosition(handleCursor);
     };
 
     const handleEmit = (e, timeStamp) => {
@@ -30,6 +68,11 @@ function App() {
         };
         socket.emit('change', operation);
     };
+
+    const handleCursor = _.throttle(e => {
+        const { socket } = live;
+        socket.emit('moveCursor', e.position);
+    }, 200);
 
     useEffect(() => {
         live['socket'] = io(target);
@@ -74,6 +117,20 @@ function App() {
                 ]);
                 isBusy.current = false;
             }
+        });
+
+        socket.on('moveCursor', (socketId, position) => {
+            if (!user[socketId]) {
+                const widget = new createCursorWidget(
+                    editorRef.current,
+                    socketId,
+                    position
+                );
+                user[socketId] = widget;
+                editorRef.current.addContentWidget(widget);
+                return;
+            }
+            user[socketId].updatePosition(position);
         });
     }, []);
 
